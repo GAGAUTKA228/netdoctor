@@ -11,7 +11,7 @@ NetDoctor - быстрая диагностика сети для выездно
 Работает и на Windows, и на Linux/macOS без дополнительных прав администратора
 (кроме traceroute на некоторых системах, где может понадобиться sudo).
 
-Автор: GAGAUTKA228
+Автор: <твоё имя>
 Лицензия: MIT
 """
 
@@ -295,7 +295,8 @@ def main():
     parser = argparse.ArgumentParser(
         description="NetDoctor - быстрая диагностика сети (DNS/ping/traceroute/порты)"
     )
-    parser.add_argument("target", help="Хост или IP-адрес для проверки")
+    parser.add_argument("target", nargs="?", default=None,
+                         help="Хост или IP-адрес для проверки")
     parser.add_argument(
         "-p", "--ports",
         default=",".join(str(p) for p in COMMON_PORTS),
@@ -313,6 +314,23 @@ def main():
     )
 
     args = parser.parse_args()
+
+    # Если запустили без аргумента (например, двойным кликом по .exe в
+    # проводнике) - спрашиваем адрес интерактивно, чтобы окно не
+    # закрывалось мгновенно с ошибкой, которую не успеть прочитать.
+    interactive_mode = args.target is None
+    if interactive_mode:
+        print(f"{Style.BRIGHT}NetDoctor{Style.RESET_ALL} - быстрая диагностика сети")
+        info("Аргумент не указан - введите адрес для проверки вручную.\n")
+        try:
+            args.target = input("Хост или IP для проверки: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            args.target = ""
+
+        if not args.target:
+            fail("Адрес не введён, завершение работы.")
+            input("\nНажмите Enter, чтобы закрыть окно...")
+            return
 
     print(f"{Style.BRIGHT}NetDoctor{Style.RESET_ALL} -> цель: {args.target}")
     if not COLOR_OK:
@@ -334,6 +352,12 @@ def main():
         run_port_scan(resolved_ip, ports, timeout=args.timeout)
 
     print(f"\n{Style.BRIGHT}Готово.{Style.RESET_ALL}")
+
+    if interactive_mode:
+        try:
+            input("\nНажмите Enter, чтобы закрыть окно...")
+        except (EOFError, KeyboardInterrupt):
+            pass
 
 
 if __name__ == "__main__":
