@@ -11,13 +11,14 @@ NetDoctor - быстрая диагностика сети для выездно
 Работает и на Windows, и на Linux/macOS без дополнительных прав администратора
 (кроме traceroute на некоторых системах, где может понадобиться sudo).
 
-Автор: GAGAUTKA228
+Автор: <твоё имя>
 Лицензия: MIT
 """
 
 import argparse
 import concurrent.futures
 import platform
+import random
 import socket
 import subprocess
 import sys
@@ -63,6 +64,26 @@ def fail(text):
 
 def info(text):
     print(f"{Fore.WHITE}{text}{Style.RESET_ALL}")
+
+
+def decode_console_output(raw_bytes):
+    """
+    Декодирует байты, полученные от системных консольных команд (ping/tracert).
+
+    На русской Windows консоль (ping, tracert) по умолчанию использует
+    кодировку CP866, а не UTF-8, из-за чего кириллица в выводе превращается
+    в "кракозябры". Пробуем несколько вариантов по очереди.
+    """
+    if isinstance(raw_bytes, str):
+        return raw_bytes
+
+    for encoding in ("cp866", "cp1251", "utf-8"):
+        try:
+            return raw_bytes.decode(encoding)
+        except (UnicodeDecodeError, LookupError):
+            continue
+    # Если совсем ничего не подошло - декодируем с заменой нечитаемых символов
+    return raw_bytes.decode("utf-8", errors="replace")
 
 
 # ---------------------------------------------------------------------------
@@ -116,9 +137,9 @@ def run_ping(target, count=4, timeout=2):
 
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=count * timeout + 5
+            cmd, capture_output=True, text=False, timeout=count * timeout + 5
         )
-        output = result.stdout
+        output = decode_console_output(result.stdout)
         print(output.strip())
 
         if result.returncode == 0:
@@ -148,11 +169,12 @@ def run_traceroute(target, max_hops=30):
 
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=60
+            cmd, capture_output=True, text=False, timeout=60
         )
-        if result.returncode != 0 and not result.stdout.strip():
+        output = decode_console_output(result.stdout)
+        if result.returncode != 0 and not output.strip():
             raise FileNotFoundError
-        print(result.stdout.strip())
+        print(output.strip())
         ok("Трассировка завершена")
 
     except FileNotFoundError:
@@ -160,9 +182,9 @@ def run_traceroute(target, max_hops=30):
             warn("traceroute не найден, пробую tracepath...")
             try:
                 result = subprocess.run(
-                    ["tracepath", target], capture_output=True, text=True, timeout=60
+                    ["tracepath", target], capture_output=True, text=False, timeout=60
                 )
-                print(result.stdout.strip())
+                print(decode_console_output(result.stdout).strip())
                 ok("Трассировка завершена (tracepath)")
             except FileNotFoundError:
                 fail("Ни traceroute, ни tracepath не установлены в системе")
@@ -208,12 +230,38 @@ def check_port(ip_address, port, timeout):
         sock.close()
 
 
+def check_network_interception(ip_address, requested_ports, timeout):
+    """
+    "Канарейка": проверяет случайный высокий порт, которого точно нет
+    в списке запрошенных и который почти наверняка закрыт на целевом хосте.
+
+    Если ОН ТОЖЕ оказывается "открыт" - значит что-то в сети (корпоративный
+    firewall/прокси с SSL-инспекцией, VPN-перехват, капчал-портал) отвечает
+    на любое TCP-соединение независимо от порта, и результатам сканирования
+    доверять нельзя.
+    """
+    candidates = [p for p in range(49152, 65000) if p not in requested_ports]
+    canary_port = random.choice(candidates)
+    _, is_open = check_port(ip_address, canary_port, timeout)
+    return canary_port, is_open
+
+
 def run_port_scan(ip_address, ports, timeout=0.7, workers=100):
     header(f"ПОРТЫ: {ip_address} ({len(ports)} шт.)")
 
     if not ip_address:
         fail("Нет IP-адреса для сканирования (см. ошибку DNS выше)")
         return
+
+    canary_port, canary_open = check_network_interception(ip_address, ports, timeout)
+    if canary_open:
+        warn(
+            f"ВНИМАНИЕ: заведомо случайный порт {canary_port} тоже 'открыт'. "
+            "Похоже, сеть перехватывает все TCP-соединения (корпоративный "
+            "firewall/прокси, VPN или капитал-портал). Результатам сканирования "
+            "портов ниже доверять НЕЛЬЗЯ - реальный список открытых портов "
+            "может выглядеть иначе."
+        )
 
     open_ports = []
     start_time = time.time()
