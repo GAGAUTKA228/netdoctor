@@ -52,7 +52,7 @@ TRACEROUTE: example.com
 Требуется Python 3.7+.
 
 ```bash
-git clone https://github.com/<твой-ник>/netdoctor.git
+git clone https://github.com/GAGAUTKA228/netdoctor.git
 cd netdoctor
 pip install -r requirements.txt
 ```
