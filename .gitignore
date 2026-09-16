@@ -5,3 +5,9 @@ venv/
 .vscode/
 .idea/
 *.log
+
+# PyInstaller build artifacts - не нужны в репозитории,
+# каждый собирает .exe у себя локально командой build.bat
+build/
+dist/
+*.spec
