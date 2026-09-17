@@ -2,7 +2,8 @@
 REM Собирает NetDoctor в один портативный .exe файл (без установки Python
 REM на целевой машине). Запускать один раз на своей рабочей машине.
 
-echo Installing PyInstaller (if not already installed)...
+echo Installing dependencies (colorama + PyInstaller)...
+pip install -r requirements.txt --quiet
 pip install pyinstaller --quiet
 
 echo.

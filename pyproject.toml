@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "netdoctor"
+version = "1.0.0"
+description = "CLI-инструмент для быстрой диагностики сети: DNS, ping, traceroute, сканирование портов, ARP"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "GAGAUTKA228" }]
+dependencies = [
+    "colorama>=0.4.6",
+]
+
+[project.scripts]
+netdoctor = "netdoctor.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["netdoctor*"]
